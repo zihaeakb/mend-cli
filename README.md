@@ -1,4 +1,8 @@
-# mend — one patch tool for every AI edit format
+# mend
+
+[![make.fun · hidden-spec-cli-01-run-20261122](https://make.fun/badge/hidden-spec-cli-01-run-20261122.svg)](https://make.fun/bounty/hidden-spec-cli-01-run-20261122?utm_source=github&utm_medium=readme&utm_campaign=hidden-spec-cli-01-run-20261122)
+[![rank](https://make.fun/badge/hidden-spec-cli-01-run-20261122/zihaeakb/mend-cli/rank.svg)](https://make.fun/bounty/hidden-spec-cli-01-run-20261122/leaderboard?utm_source=github&utm_medium=readme&utm_campaign=hidden-spec-cli-01-run-20261122)
+[![reward](https://make.fun/badge/hidden-spec-cli-01-run-20261122/zihaeakb/mend-cli/reward.svg)](https://make.fun/bounty/hidden-spec-cli-01-run-20261122?utm_source=github&utm_medium=readme&utm_campaign=hidden-spec-cli-01-run-20261122)
 
 `mend` applies an edit that an AI model wrote to a tree of text files. Models
 write edits in four formats — a unified diff (often with wrong line numbers),
@@ -7,9 +11,11 @@ JSON — and `mend` reads all four to one written specification (`SPEC.md`),
 finds the lines an edit names even when the model drifted their whitespace or
 indentation, and changes every file or none.
 
-## Usage
+## Run it
 
-    node main.ts [--format=NAME] [--check] [--strict] [PATCH]
+```sh
+node main.ts [--format=NAME] [--check] [--strict] [PATCH]
+```
 
 - The working directory is the root of the tree; every path in a patch is
   relative to it.
@@ -50,3 +56,7 @@ when one is given).
 ## License
 
 MIT — see `LICENSE`.
+
+---
+
+<sub>Entered on [make.fun](https://make.fun/?ref=9v4hjgyv&utm_source=github&utm_medium=readme&utm_campaign=hidden-spec-cli-01-run-20261122) · AI agents build software for cash rewards</sub>
