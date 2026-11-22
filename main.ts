@@ -45,6 +45,7 @@ function patchLines(text: string): string[] {
 function safe(p: string): boolean {
   return (
     p !== '' &&
+    !p.includes('\0') &&
     !p.startsWith('/') &&
     !p.includes('\\') &&
     p.split('/').every((s) => s !== '' && s !== '.' && s !== '..')
@@ -102,6 +103,28 @@ class Tree {
   }
   get(p: string): string | null {
     return this.now.has(p) ? this.now.get(p)! : this.original(p);
+  }
+  /** Whether path exists on disk as a directory (not a file). */
+  isDir(p: string): boolean {
+    try {
+      return statSync(p).isDirectory();
+    } catch {
+      return false;
+    }
+  }
+  /**
+   * Whether a file cannot be created at p: p itself is a directory, or an
+   * ancestor of p is a file in the tree (on disk, or made by an earlier edit).
+   * Without this the write phase would crash on the collision instead of
+   * failing the edit with `exists`.
+   */
+  blocked(p: string): boolean {
+    if (this.isDir(p)) return true;
+    const parts = p.split('/');
+    for (let k = 1; k < parts.length; k++) {
+      if (this.get(parts.slice(0, k).join('/')) !== null) return true;
+    }
+    return false;
   }
 }
 
@@ -374,7 +397,8 @@ function unifiedEdits(lines: string[], strict: boolean, moves: Move[]): Edit[] {
       let noNLctx = false;
       let noNLplus = false;
       for (let j = body.length - 1; j >= 0; j--) {
-        if (body[j]!.startsWith(' ') || body[j]!.startsWith('+')) {
+        // An empty line is a context line too (§6): a '\' after it counts.
+        if (body[j]!.startsWith(' ') || body[j]!.startsWith('+') || body[j]! === '') {
           noNLctx = j + 1 < body.length && body[j + 1]!.startsWith('\\');
           break;
         }
@@ -409,10 +433,12 @@ function unifiedSectionEdit(s: Section, strict: boolean, moves: Move[]): Edit {
   const newP = s.newP;
   if (oldP === null || s.isNew) {
     // Creation: the new path, from the '+' lines of all its hunks.
-    const p = (newP ?? oldP)!;
+    const p = newP ?? oldP;
+    if (p === null) return () => {}; // both paths /dev/null: creates no file
     return (tree) => {
       if (!safe(p)) throw new Fail('unsafe', p);
       if (tree.get(p) !== null) throw new Fail('exists', p);
+      if (tree.blocked(p)) throw new Fail('exists', p);
       const plus: string[] = [];
       let noNL = false;
       for (const h of s.hunks) {
@@ -439,6 +465,7 @@ function unifiedSectionEdit(s: Section, strict: boolean, moves: Move[]): Edit {
       const before = tree.get(oldP);
       if (before === null) throw new Fail('missing', oldP);
       if (tree.get(newP) !== null) throw new Fail('exists', newP);
+      if (tree.blocked(newP)) throw new Fail('exists', newP);
       const out = applyHunks(before, s.hunks, strict, oldP);
       tree.now.set(oldP, null);
       tree.now.set(newP, out);
@@ -516,6 +543,7 @@ function srBlockEdit(path: string, oldLines: string[], newLines: string[], stric
     if (!safe(path)) throw new Fail('unsafe', path);
     if (oldLines.length === 0) {
       if (tree.get(path) !== null) throw new Fail('exists', path);
+      if (tree.blocked(path)) throw new Fail('exists', path);
       tree.now.set(path, newLines.length === 0 ? '' : newLines.join('\n') + '\n');
       return;
     }
@@ -599,6 +627,7 @@ function v4aEdits(lines: string[], strict: boolean, moves: Move[]): Edit[] {
       edits.push((tree) => {
         if (!safe(path)) throw new Fail('unsafe', path);
         if (tree.get(path) !== null) throw new Fail('exists', path);
+        if (tree.blocked(path)) throw new Fail('exists', path);
         tree.now.set(path, fileLines.length === 0 ? '' : fileLines.join('\n') + '\n');
       });
     } else if (kind === 'delete') {
@@ -672,6 +701,7 @@ function v4aUpdateEdit(
     const before = tree.get(path);
     if (before === null) throw new Fail('missing', path);
     if (moveTo !== null && tree.get(moveTo) !== null) throw new Fail('exists', moveTo);
+    if (moveTo !== null && tree.blocked(moveTo)) throw new Fail('exists', moveTo);
     const out = applyV4aChunks(before, chunks, strict, path);
     if (moveTo !== null) {
       tree.now.set(path, null);
@@ -748,6 +778,7 @@ function jsonEdit(v: unknown): Edit | null {
     return (tree) => {
       if (!safe(p)) throw new Fail('unsafe', p);
       if (tree.get(p) !== null) throw new Fail('exists', p);
+      if (tree.blocked(p)) throw new Fail('exists', p);
       tree.now.set(p, text);
     };
   }
